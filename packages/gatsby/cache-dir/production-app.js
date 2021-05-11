@@ -26,6 +26,11 @@ import stripPrefix from "./strip-prefix"
 // Generated during bootstrap
 import matchPaths from "$virtual/match-paths.json"
 
+function onHydrated() {
+  console.log(`on hydrated`)
+  apiRunner(`onInitialClientRender`)
+}
+
 const loader = new ProdLoader(asyncRequires, matchPaths)
 setLoader(loader)
 loader.setApiRunner(apiRunner)
@@ -180,19 +185,27 @@ apiRunnerAsync(`onClientEntry`).then(() => {
     const renderer = apiRunner(
       `replaceHydrateFunction`,
       undefined,
-      ReactDOM.hydrate
+      process.env.GATSBY_CONCURRENT_FEATURES
+        ? ReactDOM.unstable_createRoot
+        : ReactDOM.hydrate
     )[0]
 
     domReady(() => {
-      renderer(
-        <App />,
+      const container =
         typeof window !== `undefined`
           ? document.getElementById(`___gatsby`)
-          : void 0,
-        () => {
-          apiRunner(`onInitialClientRender`)
-        }
-      )
+          : null
+
+      if (renderer === ReactDOM.unstable_createRoot) {
+        renderer(container, {
+          hydrate: true,
+          hydrationOptions: {
+            onHydrated: onHydrated,
+          },
+        }).render(<App />)
+      } else {
+        renderer(<App />, container, onHydrated)
+      }
     })
   })
 })
